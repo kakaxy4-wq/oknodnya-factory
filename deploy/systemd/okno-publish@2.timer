@@ -1,0 +1,9 @@
+[Unit]
+Description=Окно дня: ролик 2 в 14:00 МСК
+
+[Timer]
+OnCalendar=*-*-* 14:00:00 Europe/Moscow
+Unit=okno-publish@2.service
+
+[Install]
+WantedBy=timers.target

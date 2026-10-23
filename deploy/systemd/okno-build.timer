@@ -1,0 +1,9 @@
+[Unit]
+Description=Окно дня: сборка в 06:00 МСК
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 Europe/Moscow
+Persistent=true
+
+[Install]
+WantedBy=timers.target

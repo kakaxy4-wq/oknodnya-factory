@@ -1,0 +1,9 @@
+[Unit]
+Description=Окно дня: публикация ролика %i
+
+[Service]
+Type=oneshot
+User=okno
+EnvironmentFile=/etc/oknodnya.env
+WorkingDirectory=/opt/oknodnya-factory
+ExecStart=/opt/oknodnya-factory/.venv/bin/python pipeline.py publish %i

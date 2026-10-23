@@ -1,0 +1,7 @@
+out/
+clips/
+.venv/
+recorder/node_modules/
+__pycache__/
+log/
+*.webm

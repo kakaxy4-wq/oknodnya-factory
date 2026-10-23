@@ -1,0 +1,12 @@
+[Unit]
+Description=Окно дня: сборка роликов на сегодня
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=okno
+EnvironmentFile=/etc/oknodnya.env
+WorkingDirectory=/opt/oknodnya-factory
+ExecStart=/opt/oknodnya-factory/.venv/bin/python pipeline.py build
+TimeoutStartSec=3600
+Nice=10

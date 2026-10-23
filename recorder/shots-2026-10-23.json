@@ -1,0 +1,62 @@
+[
+ {
+  "name": "mur_closed",
+  "url": "/murmansk/?d=2026-01-10&t=16:30&wx=snow&obs",
+  "sec": 16,
+  "ls": {
+   "curtain": true
+  }
+ },
+ {
+  "name": "mur_open",
+  "url": "/murmansk/?d=2026-01-10&t=16:30&wx=snow&obs",
+  "sec": 9,
+  "ls": {
+   "curtain": true
+  },
+  "clickCurtainAt": 1.0
+ },
+ {
+  "name": "piter_rain",
+  "url": "/piter/?t=23:10&wx=rain&obs",
+  "sec": 36
+ },
+ {
+  "name": "kazan_day",
+  "url": "/kazan/?d=2026-06-20&t=13:00&wx=clear&obs",
+  "sec": 8
+ },
+ {
+  "name": "kazan_night",
+  "url": "/kazan/?d=2026-06-20&t=23:30&wx=clear&obs",
+  "sec": 8
+ },
+ {
+  "name": "vlad_fog",
+  "url": "/vladivostok/?t=08:30&wx=fog&obs",
+  "sec": 8
+ },
+ {
+  "name": "moskva_snow",
+  "url": "/moskva/?d=2026-01-05&t=18:30&wx=snow&obs",
+  "sec": 9
+ },
+ {
+  "name": "mur_aurora",
+  "url": "/murmansk/?d=2026-02-15&t=23:30&wx=clear&obs",
+  "sec": 7
+ },
+ {
+  "name": "piter_day",
+  "url": "/piter/?d=2026-06-21&t=12:00&wx=clear&obs",
+  "sec": 8
+ },
+ {
+  "name": "mur_view",
+  "url": "/murmansk/?d=2026-01-10&t=16:30&wx=snow&obs",
+  "sec": 36,
+  "ls": {
+   "curtain": false
+  }
+ }
+]
