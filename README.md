@@ -29,6 +29,12 @@ sudo -u okno /opt/oknodnya-factory/.venv/bin/python /opt/oknodnya-factory/pipeli
 ```
 Бот должен быть администратором канала с правом публикации.
 
+Таймеры публикаций установщик ставит выключенными — первая публикация только по решению владельца:
+```bash
+systemctl enable --now okno-publish@1.timer okno-publish@2.timer okno-publish@3.timer
+```
+Фабрика только отправляет сообщения (sendVideo, sendMessage) и не читает входящие: тем же токеном может пользоваться бот на polling.
+
 ## Лицензии
 - Сцена — код проекта «Лофи-города» (MIT). Шрифт Pangolin — SIL OFL 1.1 (`assets/fonts/OFL.txt`).
 - Музыка и шум дождя — синтез в `factory/audio.py`. Голоса — RHVoice (LGPL): `aleksandr-hq`, `anna`.
