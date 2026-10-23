@@ -5,3 +5,5 @@ recorder/node_modules/
 __pycache__/
 log/
 *.webm
+voice-cache/
+approvals/

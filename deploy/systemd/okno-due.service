@@ -1,0 +1,9 @@
+[Unit]
+Description=Окно дня: публикация одобренных роликов в их слот
+
+[Service]
+Type=oneshot
+User=okno
+EnvironmentFile=/etc/oknodnya.env
+WorkingDirectory=/opt/oknodnya-factory
+ExecStart=/opt/oknodnya-factory/.venv/bin/python pipeline.py due

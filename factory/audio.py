@@ -1,5 +1,13 @@
-"""Звук фабрики: голос (RHVoice, свободный синтезатор речи), лофи-подложка и шум дождя — синтез кодом, без чужих треков."""
+"""Звук фабрики: голос, лофи-подложка и шум дождя — синтез кодом, без чужих треков.
+
+Голос: ElevenLabs (живые голоса), если в /etc/oknodnya.env задан OKNO_ELEVEN_KEY; иначе — RHVoice (свободный, но
+«робот»). Озвученные реплики кэшируются в voice-cache/ — пересборка того же ролика символы не тратит.
+"""
+import hashlib
+import json
+import os
 import subprocess
+import urllib.request
 import wave
 from pathlib import Path
 
@@ -39,16 +47,54 @@ def _trim_silence(x, thr=0.01):
     return x[max(0, idx[0] - 800): idx[-1] + 2000]
 
 
+# Голоса сценариев (имена из RHVoice) → голоса ElevenLabs: женский — Marusya G (ей же озвучены заставки радио),
+# мужской — Maxim, спокойный разговорный. Переопределить: OKNO_ELEVEN_VOICES="anna=ID,aleksandr-hq=ID"
+ELEVEN_VOICES = {"anna": "6gs4Nc3jAINHpczl2vtf", "aleksandr-hq": "6YjFofyVXU1ASguf2hTJ"}
+ELEVEN_MODEL = os.environ.get("OKNO_ELEVEN_MODEL", "eleven_multilingual_v2")
+CACHE = Path(__file__).resolve().parent.parent / "voice-cache"
+
+
+def _eleven_voice(name):
+    over = dict(kv.split("=", 1) for kv in os.environ.get("OKNO_ELEVEN_VOICES", "").split(",") if "=" in kv)
+    return over.get(name) or ELEVEN_VOICES.get(name) or ELEVEN_VOICES["aleksandr-hq"]
+
+
+def _eleven(text, name, out_wav):
+    """Реплика голосом ElevenLabs → wav; повтор той же фразы тем же голосом берётся из кэша."""
+    vid = _eleven_voice(name)
+    key = hashlib.sha256(f"{vid}|{ELEVEN_MODEL}|{text}".encode()).hexdigest()[:20]
+    mp3 = CACHE / f"{key}.mp3"
+    if not mp3.exists():
+        body = json.dumps({"text": text, "model_id": ELEVEN_MODEL,
+                           "voice_settings": {"stability": 0.45, "similarity_boost": 0.8, "style": 0.25}}).encode()
+        req = urllib.request.Request(f"https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=mp3_44100_128",
+                                     data=body, headers={"xi-api-key": os.environ["OKNO_ELEVEN_KEY"],
+                                                         "Content-Type": "application/json", "Accept": "audio/mpeg"})
+        with urllib.request.urlopen(req, timeout=120) as r:
+            data = r.read()
+        CACHE.mkdir(exist_ok=True)
+        mp3.write_bytes(data)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(mp3), "-ac", "1", "-ar", str(SR), str(out_wav)], check=True)
+
+
 def voice(lines, out_wav, tmp: Path, profile="aleksandr-hq", rate=None):
     """Озвучить реплики по одной; вернуть тайминги [(start, end, line)] для субтитров."""
     tmp.mkdir(parents=True, exist_ok=True)
     chunks, timings, t = [np.zeros(int(0.25 * SR))], [], 0.25
     for i, line in enumerate(lines):
         p = tmp / f"vo_{i}.wav"
-        args = ["RHVoice-test", "-p", line.get("voice", profile), "-o", str(p)]   # у реплики может быть свой голос
-        if rate:
-            args += ["-r", str(rate)]
-        subprocess.run(args, input=line["say"].encode(), check=True, capture_output=True)
+        name = line.get("voice", profile)   # у реплики может быть свой голос
+        try:
+            if not os.environ.get("OKNO_ELEVEN_KEY"):
+                raise RuntimeError("нет OKNO_ELEVEN_KEY")
+            _eleven(line["say"], name, p)
+        except Exception as e:  # noqa: BLE001 — нет ключа, кончились символы, сеть: ролик всё равно соберётся
+            if os.environ.get("OKNO_ELEVEN_KEY"):
+                print("ElevenLabs недоступен, озвучка RHVoice:", e)
+            args = ["RHVoice-test", "-p", name, "-o", str(p)]
+            if rate:
+                args += ["-r", str(rate)]
+            subprocess.run(args, input=line["say"].encode(), check=True, capture_output=True)
         x = _trim_silence(_read_wav(p))
         x = x / (np.abs(x).max() + 1e-9) * 0.9
         timings.append((t, t + len(x) / SR, line))

@@ -1,0 +1,9 @@
+[Unit]
+Description=Окно дня: каждые 5 минут — не пора ли опубликовать одобренный ролик
+
+[Timer]
+OnCalendar=*:0/5
+Unit=okno-due.service
+
+[Install]
+WantedBy=timers.target

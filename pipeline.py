@@ -1,7 +1,12 @@
 """Ежедневный конвейер на сервере.
 
-  python3 pipeline.py build [ДАТА]     # 06:00 — git pull, запись сцен, сборка, техпроверка → out/ДАТА/*/QA-OK
-  python3 pipeline.py publish N [ДАТА] # 09:00 / 14:00 / 20:00 — публикация ролика N (1, 2, 3)
+  python3 pipeline.py build [ДАТА]     # 06:00 — git pull, запись сцен, сборка, техпроверка → out/ДАТА/*/QA-OK,
+                                       #   каждый ролик — владельцу в личку бота с кнопками «✅ В канал / ⏭ Пропустить»
+  python3 pipeline.py due              # каждые 5 минут: одобренный ролик выходит в свой слот (09:00 / 14:00 / 20:00)
+                                       #   или сразу после одобрения, если слот уже прошёл (до 23:30)
+  python3 pipeline.py publish N [ДАТА] # вручную: опубликовать ролик N (1, 2, 3) без одобрения
+
+Кнопки обрабатывает бот сайта (тот же токен, он и так слушает Telegram): решение — файл approvals/ДАТА-N.ok|.skip.
 
 Сценарии пишет Claude (ежедневная задача) в content/ДАТА.json и ставит "approved": true только после просмотра кадров.
 Без одобренного плана сервер ничего не собирает и не публикует.
@@ -13,12 +18,14 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 SITE = Path(os.environ.get("OKNO_SITE_REPO", "/opt/lofi-goroda-public"))
 CLIPS = ROOT / "clips"
+APPROVALS = Path(os.environ.get("OKNO_APPROVALS", ROOT / "approvals"))
+SLOTS = {"1": (9, 0), "2": (14, 0), "3": (20, 0)}
 
 
 def sh(*args, **kw):
@@ -84,7 +91,55 @@ def build(day):
         if size < 49e6 and 10 < dur < 60 and any(s.get("width") == 1080 for s in qa["probe"]["streams"]):
             (folder / "QA-OK").write_text("ok\n")
             ok.append(v["id"])
-    notify(f"🎬 Окно дня {day}: собрано {len(ok)}/{len(plan['videos'])} — {', '.join(ok)}")
+    notify(f"🎬 Окно дня {day}: собрано {len(ok)}/{len(plan['videos'])}. Ниже ролики — без ✅ в канал не выйдут.")
+    for vid in ok:
+        send_for_review(day, vid)
+
+
+def send_for_review(day, vid):
+    """Ролик владельцу в личку с кнопками; решение запишет бот сайта в approvals/."""
+    chat = os.environ.get("OKNO_OWNER_CHAT")
+    if not chat:
+        return
+    from factory.publish import api
+    folder, n = ROOT / "out" / day / vid, vid.split("-")[0]
+    hh, mm = SLOTS.get(n, (0, 0))
+    post = (folder / "post.txt").read_text(encoding="utf-8")
+    caption = f"№{n} на {day[8:]}.{day[5:7]} · выйдет в {hh:02d}:{mm:02d} после ✅\n\n{post}"[:1024]
+    kb = {"inline_keyboard": [[{"text": "✅ В канал", "callback_data": f"ov:ok:{day}:{n}"},
+                               {"text": "⏭ Пропустить", "callback_data": f"ov:skip:{day}:{n}"}]]}
+    try:
+        mp4 = next(folder.glob("*.mp4"))
+        api("sendVideo", {"chat_id": chat, "caption": caption, "supports_streaming": "true", "width": 1080, "height": 1920,
+                          "reply_markup": json.dumps(kb, ensure_ascii=False)},
+            {"video": (mp4.name, mp4.read_bytes(), "video/mp4")})
+    except Exception as e:  # noqa: BLE001
+        notify(f"Не смог прислать ролик {vid} на одобрение: {e}")
+
+
+def decision(day, n):
+    if (APPROVALS / f"{day}-{n}.skip").exists():
+        return "skip"
+    return "ok" if (APPROVALS / f"{day}-{n}.ok").exists() else None
+
+
+def due(now=None):
+    """Раз в 5 минут: одобренные ролики, чей слот наступил, — в канал; неодобренным — одно напоминание."""
+    from factory.publish import published
+    now = now or datetime.now()
+    day = now.date().isoformat()
+    for n, (hh, mm) in SLOTS.items():
+        if (now.hour, now.minute) < (hh, mm) or (now.hour, now.minute) > (23, 30):
+            continue
+        folders = sorted((ROOT / "out" / day).glob(f"{n}-*"))
+        if not folders or not (folders[0] / "QA-OK").exists():
+            continue
+        state = decision(day, n)
+        if state == "ok" and not published(next(folders[0].glob("*.mp4")).stem):
+            publish(n, day)
+        elif state is None and not (folders[0] / "REMINDED").exists():
+            (folders[0] / "REMINDED").write_text("1\n")
+            notify(f"⏰ Окно дня {day}: ролик №{n} ждёт ✅ — выйдет сразу после одобрения (до 23:30).")
 
 
 def publish(n, day):
@@ -104,5 +159,7 @@ if __name__ == "__main__":
     cmd = sys.argv[1]
     if cmd == "build":
         build(sys.argv[2] if len(sys.argv) > 2 else date.today().isoformat())
+    elif cmd == "due":
+        due()
     elif cmd == "publish":
         publish(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else date.today().isoformat())

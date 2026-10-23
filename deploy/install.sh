@@ -26,6 +26,8 @@ echo "== код"
 [ -d "$DIR/.git" ] || git clone "$REPO_URL" "$DIR"
 [ -d "$SITE/.git" ] || git clone --depth 1 https://github.com/kakaxy4-wq/lofi-goroda-public "$SITE"
 chown -R okno:okno "$DIR" "$SITE"
+# решения владельца (✅/⏭) пишет бот сайта из контейнера (пользователь pwuser, uid 1000) — папка общая
+install -d -m 2775 -o okno -g 1000 "$DIR/approvals"
 
 echo "== python и браузер"
 sudo -u okno python3 -m venv "$DIR/.venv"
@@ -44,12 +46,17 @@ echo "== расписание: systemd-таймеры по московском�
 install -m 644 "$DIR"/deploy/systemd/* /etc/systemd/system/
 systemctl daemon-reload
 # Сборка — сразу. Публикации — только по явному решению владельца: ENABLE_PUBLISH=1 bash install.sh
-# (или позже: systemctl enable --now okno-publish@1.timer okno-publish@2.timer okno-publish@3.timer)
+# (или позже: systemctl enable --now okno-due.timer). Каждый ролик всё равно ждёт ✅ владельца в личке бота.
 systemctl enable --now okno-build.timer
+for n in 1 2 3; do  # старая схема «в слот без одобрения» — убрать
+  systemctl disable --now "okno-publish@$n.timer" 2>/dev/null || true
+  rm -f "/etc/systemd/system/okno-publish@$n.timer"
+done
+systemctl daemon-reload
 if [ "${ENABLE_PUBLISH:-0}" = "1" ]; then
-  systemctl enable --now okno-publish@1.timer okno-publish@2.timer okno-publish@3.timer
+  systemctl enable --now okno-due.timer
 else
-  echo "Таймеры публикаций установлены, но выключены (ENABLE_PUBLISH=1 — включить)."
+  echo "Таймер публикаций установлен, но выключен (ENABLE_PUBLISH=1 — включить)."
 fi
 systemctl list-timers 'okno-*' --no-pager
 
