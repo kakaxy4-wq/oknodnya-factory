@@ -91,6 +91,8 @@ def build(day):
         if size < 49e6 and 10 < dur < 60 and any(s.get("width") == 1080 for s in qa["probe"]["streams"]):
             (folder / "QA-OK").write_text("ok\n")
             ok.append(v["id"])
+    for f in APPROVALS.glob(f"{day}-*"):  # пересобрали — прежние ✅/⏭ относились к другой версии роликов
+        f.unlink(missing_ok=True)
     notify(f"🎬 Окно дня {day}: собрано {len(ok)}/{len(plan['videos'])}. Ниже ролики — без ✅ в канал не выйдут.")
     for vid in ok:
         send_for_review(day, vid)
