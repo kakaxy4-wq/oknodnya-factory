@@ -8,8 +8,8 @@
 
 Кнопки обрабатывает бот сайта (тот же токен, он и так слушает Telegram): решение — файл approvals/ДАТА-N.ok|.skip.
 
-Сценарии пишет Claude (ежедневная задача) в content/ДАТА.json и ставит "approved": true только после просмотра кадров.
-Без одобренного плана сервер ничего не собирает и не публикует.
+Сценарии пишет Claude (ежедневная задача) в content/ДАТА.json. "approved": false (черновик: задача не смогла собрать
+и посмотреть кадры) сборку не останавливает — настоящие ворота это ✅ владельца по каждому ролику; в сообщении пометка.
 """
 import json
 import os
@@ -62,9 +62,7 @@ def build(day):
         notify(f"⚠️ Окно дня: на {day} нет сценариев — сегодня ролики не выйдут.")
         return
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
-    if not plan.get("approved"):
-        notify(f"⚠️ Окно дня: сценарии на {day} не одобрены — публикации не будет.")
-        return
+    draft = not plan.get("approved")  # 25–26.10 из-за этого флага ролики не собирались вовсе, хотя решение всё равно за владельцем
     CLIPS.mkdir(exist_ok=True)
     port = 8765
     srv = None
@@ -93,7 +91,8 @@ def build(day):
             ok.append(v["id"])
     for f in APPROVALS.glob(f"{day}-*"):  # пересобрали — прежние ✅/⏭ относились к другой версии роликов
         f.unlink(missing_ok=True)
-    notify(f"🎬 Окно дня {day}: собрано {len(ok)}/{len(plan['videos'])}. Ниже ролики — без ✅ в канал не выйдут.")
+    note = " Сценарии — черновик задачи (кадры она не смотрела): проверьте ролики внимательнее." if draft else ""
+    notify(f"🎬 Окно дня {day}: собрано {len(ok)}/{len(plan['videos'])}. Ниже ролики — без ✅ в канал не выйдут.{note}")
     for vid in ok:
         send_for_review(day, vid)
 
