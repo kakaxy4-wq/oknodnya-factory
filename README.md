@@ -33,7 +33,7 @@ sudo -u okno /opt/oknodnya-factory/.venv/bin/python /opt/oknodnya-factory/pipeli
 ```bash
 systemctl enable --now okno-publish@1.timer okno-publish@2.timer okno-publish@3.timer
 ```
-Фабрика только отправляет сообщения (sendVideo, sendMessage) и не читает входящие: тем же токеном может пользоваться бот на polling.
+Фабрика только отправляет сообщения (sendVideo, sendPoll) и не читает входящие; комментарии, разгадку загадки и призы ведёт бот сайта по файлу approvals/quiz-ДАТА-N.json: тем же токеном может пользоваться бот на polling.
 
 ## Лицензии
 - Сцена — код проекта «Лофи-города» (MIT). Шрифт Pangolin — SIL OFL 1.1 (`assets/fonts/OFL.txt`).

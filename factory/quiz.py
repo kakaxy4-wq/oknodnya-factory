@@ -1,4 +1,5 @@
-"""Загадка «Какой город за шторой?» в канале: ролик без ответа → опрос-викторина под ним → вечером разгадка.
+"""Загадка «Какой город за шторой?» в канале: ролик без ответа → опрос под ним и ответы в комментариях →
+вечером разгадка (её публикует бот сайта, см. for_bot).
 
 Ролик-квиз в сценарии — тот, у кого есть "curtain_line" и "reveal" (ответ в «reveal»: «Ярославль!»).
 Для канала ответ из ролика вырезается: реплики с curtain_line и дальше заменяет одна — «варианты в опросе».
@@ -59,8 +60,11 @@ def post_text(post):
     return post.rstrip() + "\n\nВарианты — в опросе ниже 👇 Разгадка вечером."
 
 
-def explanation(q):
-    return f"{q['answer']}! Окно: lofi-goroda.ru/{q['city']}/"[:200]
+def for_bot(q, video_msg_id, poll_msg_id, posted: datetime):
+    """Файл загадки для бота сайта: он читает комментарии, в reveal_at закрывает опрос и публикует разгадку."""
+    return {"video": video_msg_id, "poll": poll_msg_id, "answer": q["answer"], "city": q["city"],
+            "options": q["options"], "correct": q["correct"],
+            "reveal_at": reveal_time(posted).isoformat(timespec="minutes")}
 
 
 def reveal_time(posted: datetime):
@@ -70,16 +74,3 @@ def reveal_time(posted: datetime):
         nxt = posted.date() + timedelta(days=1)
         t = max(t, datetime(nxt.year, nxt.month, nxt.day, *MORNING))
     return t
-
-
-def reveal_text(q, poll):
-    """Пост-разгадка ответом на опрос. poll — объект Poll из stopPoll."""
-    total = poll.get("total_voter_count", 0)
-    right = poll["options"][q["correct"]].get("voter_count", 0) if total else 0
-    if not total:
-        score = "В этот раз никто не рискнул — завтра новая загадка."
-    elif right == total:
-        score = f"Угадали все {total} — сильны!" if total > 1 else "Угадал единственный голосовавший — браво!"
-    else:
-        score = f"Угадали {right} из {total}."
-    return f"Разгадка: {q['answer']}! {score}\n\nПосидеть у этого окна: lofi-goroda.ru/{q['city']}/"

@@ -47,10 +47,8 @@ def test_reveal_time():
     assert quiz.reveal_time(datetime(2026, 10, 28, 23, 20)) == datetime(2026, 10, 29, 9, 0)
 
 
-def test_reveal_text():
-    q = {"answer": "Ярославль", "city": "yaroslavl", "options": ["Казань", "Ярославль"], "correct": 1}
-    t = quiz.reveal_text(q, {"total_voter_count": 5, "options": [{"voter_count": 2}, {"voter_count": 3}]})
-    assert t.startswith("Разгадка: Ярославль! Угадали 3 из 5.") and "lofi-goroda.ru/yaroslavl/" in t
-    assert "никто" in quiz.reveal_text(q, {"total_voter_count": 0, "options": [{}, {}]})
-    assert "все 4" in quiz.reveal_text(q, {"total_voter_count": 4, "options": [{"voter_count": 0}, {"voter_count": 4}]})
-    assert len(quiz.explanation(q)) <= 200
+def test_for_bot():
+    q = {"answer": "Ярославль", "city": "yaroslavl", "options": ["Тверь", "Ярославль"], "correct": 1}
+    b = quiz.for_bot(q, 30, 31, datetime(2026, 10, 28, 14, 5))
+    assert b == {"video": 30, "poll": 31, "answer": "Ярославль", "city": "yaroslavl", "options": ["Тверь", "Ярославль"],
+                 "correct": 1, "reveal_at": "2026-10-28T21:00"}

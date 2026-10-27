@@ -93,20 +93,25 @@ def publish(folder: Path, dry=False):
 
 
 def send_quiz(folder: Path, channel, video_msg_id):
-    """Опрос-викторина ответом на ролик-загадку; id опроса — в POLL.json, по нему вечером разгадка (pipeline due)."""
+    """Опрос ответом на ролик-загадку. Обычный, не «викторина»: та подсвечивает ответ сразу после голоса,
+    и его можно было бы списать в комментарии за приз. Разгадку, призы за комментарии и закрытие опроса
+    делает бот сайта по файлу quiz-ДАТА-N.json в общей папке решений (формат — в его bot/quiz.py)."""
     from factory import quiz
     q = json.loads((folder / "quiz.json").read_text(encoding="utf-8"))
     try:
-        poll = api("sendPoll", {"chat_id": channel, "question": "Какой город за шторой?",
+        poll = api("sendPoll", {"chat_id": channel, "question": "Какой город за шторой? Ответ можно и в комментариях",
                                 "options": json.dumps([{"text": o} for o in q["options"]], ensure_ascii=False),
-                                "type": "quiz", "correct_option_id": q["correct"], "is_anonymous": "true",
-                                "explanation": quiz.explanation(q),
+                                "is_anonymous": "true",
                                 "reply_parameters": json.dumps({"message_id": video_msg_id})})
     except Exception as e:  # noqa: BLE001 — ролик уже вышел; без опроса просто не будет разгадки
         print("опрос не отправлен:", e)
         return
     (folder / "POLL.json").write_text(json.dumps({"message_id": poll["message_id"], "video_message_id": video_msg_id,
                                                   "posted_at": datetime.now().isoformat(timespec="minutes")}), encoding="utf-8")
+    approvals = Path(os.environ.get("OKNO_APPROVALS", Path(__file__).resolve().parent.parent / "approvals"))
+    n = folder.name.split("-")[0]
+    (approvals / f"quiz-{folder.parent.name}-{n}.json").write_text(json.dumps(
+        quiz.for_bot(q, video_msg_id, poll["message_id"], datetime.now()), ensure_ascii=False), encoding="utf-8")
 
 
 if __name__ == "__main__":
