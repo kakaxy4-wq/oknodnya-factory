@@ -4,13 +4,15 @@
 """
 import argparse
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
 
-from factory import audio, compose
+from factory import audio, compose, quiz
 
 ROOT = Path(__file__).resolve().parent
+SITE = Path(os.environ.get("OKNO_SITE_REPO", "/opt/lofi-goroda-public"))  # список окон — для вариантов загадки
 
 
 def build_video(v, clips: Path, out_dir: Path):
@@ -96,6 +98,8 @@ def main():
     ap.add_argument("--only", default="", help="собрать только ролик с этим id")
     a = ap.parse_args()
     plan = json.loads(Path(a.plan).read_text(encoding="utf-8"))
+    idx = SITE / "site" / "cities" / "index.json"
+    cities = json.loads(idx.read_text(encoding="utf-8")) if idx.exists() else []
     for v in plan["videos"]:
         if a.only and v["id"] != a.only:
             continue
@@ -103,6 +107,12 @@ def main():
         if out_dir.exists():
             shutil.rmtree(out_dir)
         out_dir.mkdir(parents=True)
+        q = quiz.make_quiz(v, cities, plan["date"])
+        if q:  # загадка: в канал — ролик без ответа, под ним опрос (factory/publish.py), вечером разгадка (pipeline due)
+            (out_dir / "quiz.json").write_text(json.dumps(q, ensure_ascii=False), encoding="utf-8")
+            v = {**quiz.teaser(v), "post": quiz.post_text(v["post"])}
+        elif quiz.is_quiz(v):
+            print(f"{v['id']}: ответ «{v['reveal']}» не найден среди окон сайта — ролик выйдет с разгадкой, без опроса")
         mp4, dur, _ = build_video(v, Path(a.clips), out_dir)
         rep = qa(mp4, out_dir)
         (out_dir / "qa.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1), encoding="utf-8")

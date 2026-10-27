@@ -18,7 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -106,6 +106,9 @@ def send_for_review(day, vid):
     folder, n = ROOT / "out" / day / vid, vid.split("-")[0]
     hh, mm = SLOTS.get(n, (0, 0))
     post = (folder / "post.txt").read_text(encoding="utf-8")
+    if (folder / "quiz.json").exists():  # загадка: владелец видит и варианты опроса
+        q = json.loads((folder / "quiz.json").read_text(encoding="utf-8"))
+        post += f"\n\n🗳 Под роликом опрос: {' · '.join(q['options'])} (верно: {q['answer']}). Разгадка — в 21:00."
     caption = f"№{n} на {day[8:]}.{day[5:7]} · выйдет в {hh:02d}:{mm:02d} после ✅\n\n{post}"[:1024]
     kb = {"inline_keyboard": [[{"text": "✅ В канал", "callback_data": f"ov:ok:{day}:{n}"},
                                {"text": "⏭ Пропустить", "callback_data": f"ov:skip:{day}:{n}"}]]}
@@ -143,6 +146,33 @@ def due(now=None):
             notify(f"⏰ Окно дня {day}: ролик №{n} ждёт ✅ — выйдет сразу после одобрения (до 23:30).")
 
 
+def reveal(now=None):
+    """Раз в 5 минут: опросы-загадки (сегодня и вчера), у которых настало время, — закрыть и ответить разгадкой."""
+    from factory import quiz
+    from factory.publish import api
+    now = now or datetime.now()
+    for day in (now.date().isoformat(), (now.date() - timedelta(days=1)).isoformat()):
+        for folder in sorted((ROOT / "out" / day).glob("*/POLL.json")):
+            folder = folder.parent
+            if (folder / "REVEALED").exists():
+                continue
+            p = json.loads((folder / "POLL.json").read_text(encoding="utf-8"))
+            if now < quiz.reveal_time(datetime.fromisoformat(p["posted_at"])):
+                continue
+            q = json.loads((folder / "quiz.json").read_text(encoding="utf-8"))
+            channel = os.environ.get("OKNO_CHANNEL", "@oknodnya")
+            (folder / "REVEALED").write_text("1\n")  # раньше отправки: сбой сети не должен дать две разгадки
+            try:
+                poll = api("stopPoll", {"chat_id": channel, "message_id": p["message_id"]})
+                api("sendMessage", {"chat_id": channel, "text": quiz.reveal_text(q, poll),
+                                    "reply_parameters": json.dumps({"message_id": p["message_id"]})})
+            except Exception as e:  # noqa: BLE001
+                notify(f"❌ Окно дня: разгадка {folder.name} не вышла: {e}")
+                continue
+            total = poll.get("total_voter_count", 0)
+            notify(f"🔓 Разгадка {folder.name}: {q['answer']}. Угадали {poll['options'][q['correct']].get('voter_count', 0)} из {total}.")
+
+
 def publish(n, day):
     from factory.publish import publish as pub
     folders = sorted((ROOT / "out" / day).glob(f"{n}-*"))
@@ -162,5 +192,6 @@ if __name__ == "__main__":
         build(sys.argv[2] if len(sys.argv) > 2 else date.today().isoformat())
     elif cmd == "due":
         due()
+        reveal()
     elif cmd == "publish":
         publish(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else date.today().isoformat())

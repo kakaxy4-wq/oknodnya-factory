@@ -88,6 +88,25 @@ def publish(folder: Path, dry=False):
             w.writerow(["id", "posted_at", "message_id", "invite_link"])
         w.writerow([vid, datetime.now().isoformat(timespec="minutes"), msg["message_id"], link])
     print("опубликовано:", vid, "· ссылка для внешних площадок:", link)
+    if (folder / "quiz.json").exists():
+        send_quiz(folder, channel, msg["message_id"])
+
+
+def send_quiz(folder: Path, channel, video_msg_id):
+    """Опрос-викторина ответом на ролик-загадку; id опроса — в POLL.json, по нему вечером разгадка (pipeline due)."""
+    from factory import quiz
+    q = json.loads((folder / "quiz.json").read_text(encoding="utf-8"))
+    try:
+        poll = api("sendPoll", {"chat_id": channel, "question": "Какой город за шторой?",
+                                "options": json.dumps([{"text": o} for o in q["options"]], ensure_ascii=False),
+                                "type": "quiz", "correct_option_id": q["correct"], "is_anonymous": "true",
+                                "explanation": quiz.explanation(q),
+                                "reply_parameters": json.dumps({"message_id": video_msg_id})})
+    except Exception as e:  # noqa: BLE001 — ролик уже вышел; без опроса просто не будет разгадки
+        print("опрос не отправлен:", e)
+        return
+    (folder / "POLL.json").write_text(json.dumps({"message_id": poll["message_id"], "video_message_id": video_msg_id,
+                                                  "posted_at": datetime.now().isoformat(timespec="minutes")}), encoding="utf-8")
 
 
 if __name__ == "__main__":
